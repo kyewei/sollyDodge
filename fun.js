@@ -16,6 +16,9 @@
 var canvas, context, jqueryCanvas;
 var sizex = 640, sizey = 480;
 var solly;
+var sentry;
+var bullets;
+var lastBullet;
 var before;
 var inputTrack;
 
@@ -91,7 +94,7 @@ function prep(){
 }
 
 function Solly(){
-  self = this;
+  var self = this;
   self.x = sizex/2;
   self.y = sizey-100;
   self.vx = 0; //max 160 pixels per second
@@ -120,10 +123,53 @@ function Solly(){
   self.sprite.jumping = false;
   self.rocketWait = 500; //firespeed in ms of rocket launcher
   self.rocketSpeed = 480;
+  self.fireRocket = function(xi, yi, xf, yf){
+    for (i=0; i<4; ++i)
+      if (!rocketUsed[i])
+      {
+        rocketUsed[i]=true;
+        rockets[i][0]=xi;
+        rockets[i][1]=yi;
+        var factor = Math.sqrt(Math.pow(xf-xi,2)+Math.pow(yf-yi,2))/solly.rocketSpeed;
+        rockets[i][2] = (xf-xi)/factor;
+        rockets[i][3] = (yf-yi)/factor;
+        rockets[i][4] = Math.atan2(xf-xi,(yf-yi)*-1); //-1 because y axis is flipped    
+        break;
+      }
+  };
+}
+
+function Sentry(){
+  var self = this;
+  self.hp = 100;
+  self.x = Math.random()*(sizex-40)+20;
+  self.y = 50;
+  self.sprite = {};
+  self.sprite.img = new Image();
+  self.sprite.imgLoaded = false;
+  self.sprite.img.onload = function () {
+    self.sprite.imgLoaded = true;
+  };
+  self.sprite.img.src = "sentrysprite.png";
+  self.sprite.ctr = 0; //counter
+  self.sprite.ctrskp = 8; //counter skip, i.e. framerate
+  self.sprite.moving = false;
+}
+
+function Bullet(_x, _y, _vx, _vy){
+  this.x=_x;
+  this.y=_y;
+  this.vx=_vx;
+  this.vy=_vy;
+  this.prev=null;
+  this.next=null;
 }
 
 function reset(){
   solly = new Solly();
+  bullets = null;
+  lastBullet = null;
+  sentry = new Sentry();
 }
 
 function startGame(){
@@ -186,7 +232,7 @@ function loop() {
   if (inputTrack.leftMouseDown)
   {
     if (now>=inputTrack.leftMouseTime){
-      fireRocket(solly.x, solly.y, inputTrack.mouseX, inputTrack.mouseY);
+      solly.fireRocket(solly.x, solly.y, inputTrack.mouseX, inputTrack.mouseY);
       
       while(now>=inputTrack.leftMouseTime)
         inputTrack.leftMouseTime+=solly.rocketWait;
@@ -210,22 +256,6 @@ function loop() {
 }
 
 
-function fireRocket(xi, yi, xf, yf){
-  for (i=0; i<4; ++i)
-  {
-    if (!rocketUsed[i])
-    {
-      rocketUsed[i]=true;
-      rockets[i][0]=xi;
-      rockets[i][1]=yi;
-      var factor = Math.sqrt(Math.pow(xf-xi,2)+Math.pow(yf-yi,2))/solly.rocketSpeed;
-      rockets[i][2] = (xf-xi)/factor;
-      rockets[i][3] = (yf-yi)/factor;
-      rockets[i][4] = Math.atan2(xf-xi,(yf-yi)*-1); //-1 because y axis is flipped    
-      break;
-    }
-  }
-}
 
 function draw() {
   context.clearRect(0, 0, sizex, sizey);
@@ -247,6 +277,16 @@ function draw() {
     else
       solly.sprite.ctr = (solly.sprite.ctr+1)%(4*3*solly.sprite.ctrskp);
       
+  }
+
+  if (sentry.sprite.imgLoaded){
+    
+    xcoord=(~~(sentry.sprite.ctr/sentry.sprite.ctrskp))*62;
+    ycoord=0;
+
+    context.drawImage(sentry.sprite.img, xcoord, ycoord, 62, 39, ~~sentry.x-62/2, ~~sentry.y-39/2, 62, 39);
+    
+    sentry.sprite.ctr = (sentry.sprite.ctr+1)%(13*sentry.sprite.ctrskp);      
   }
 
   //context.beginPath();
