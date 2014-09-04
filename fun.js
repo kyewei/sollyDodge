@@ -153,14 +153,42 @@ function Sentry(){
   self.sprite.img.src = "sentrysprite.png";
   self.sprite.ctr = 0; //counter
   self.sprite.ctrskp = 8; //counter skip, i.e. framerate
-  self.sprite.moving = false;
+  self.sprite.tracking = false;
+  self.shootAtEnemy = function(enemy){
+    if (lastBullet == null) {
+      bullets = new Bullet(self.x, self.y, enemy.x, enemy.y);
+      lastBullet = bullets;
+
+    }
+    else {
+      lastBullet.next = new Bullet(self.x, self.y, enemy.x, enemy.y)
+      lastBullet.next.prev = lastBullet;
+      lastBullet = lastBullet.next;
+    }
+  };
+  self.removeBullet = function (bullet) {
+    if (bullet.prev == null) {
+      lastBullet = null;
+      bullet = null;
+    }
+    else {
+      bullet.prev.next = bullet.next;
+      bullet.next.prev = bullet.prev;
+      if (bullet.next==null)
+        lastBullet = bullet.prev;        
+    }
+  }
+  self.bulletSpeed = 200;
+
 }
 
-function Bullet(_x, _y, _vx, _vy){
-  this.x=_x;
-  this.y=_y;
-  this.vx=_vx;
-  this.vy=_vy;
+function Bullet(_xi, _yi, _xf, _yf){
+  this.x=_xi;
+  this.y=_yi;
+  var factor = Math.sqrt(Math.pow(_xf-_xi,2)+Math.pow(_yf-_yi,2))/solly.rocketSpeed;
+  this.vx = (_xf-_xi)/factor;
+  this.vy = (_yf-_yi)/factor;
+  this.angle = Math.atan2(_xf-_xi,(_yf-_yi)*-1); //-1 because y axis is flipped
   this.prev=null;
   this.next=null;
 }
@@ -177,7 +205,6 @@ function startGame(){
   before = Date.now();
   loop();
 }
-
 
 
 function loop() {
@@ -284,7 +311,7 @@ function draw() {
     xcoord=(~~(sentry.sprite.ctr/sentry.sprite.ctrskp))*62;
     ycoord=0;
 
-    context.drawImage(sentry.sprite.img, xcoord, ycoord, 62, 39, ~~sentry.x-62/2, ~~sentry.y-39/2, 62, 39);
+    context.drawImage(sentry.sprite.img, xcoord, ycoord, 39, 39, ~~sentry.x-62/2, ~~sentry.y-39/2, 39, 39); //xold 62
     
     sentry.sprite.ctr = (sentry.sprite.ctr+1)%(13*sentry.sprite.ctrskp);      
   }
@@ -306,6 +333,18 @@ function draw() {
         context.drawImage(solly.rocket.img, -(9/2), -(48/2));
         context.restore();
       }
+    }
+  }
+  
+  //bullet
+  if (bullets!=null){
+    for (b = bullets; b; b = b.bullets.next) {
+      context.beginPath();
+      context.arc(inputTrack.mouseX, inputTrack.mouseY, 2, 0, 2 * Math.PI, false);
+      context.lineWidth = 2;
+      context.strokeStyle = 'black';
+      context.stroke();
+      context.closePath();
     }
   }
   context.beginPath();
