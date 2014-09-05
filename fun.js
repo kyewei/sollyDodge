@@ -23,7 +23,7 @@ var before;
 var inputTrack;
 
 var dt;
-var gravity = 2500;
+var gravity = 2000;
 
 var rocketUsed = [false, false, false, false];
 var rockets = [[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0],[0,0,0,0,0]]; 
@@ -137,6 +137,61 @@ function Solly(){
         break;
       }
   };
+  self.advance = function(now) {
+    //LEFT or RIGHT button handle
+    if (inputTrack.leftPressed || inputTrack.rightPressed)
+    {
+      solly.sprite.moving = true;
+      solly.ctr = 0;
+      if (inputTrack.leftPressed){
+        solly.facingLeft=true;
+        solly.vx=-solly.maxSpeedX;
+      }
+      if (inputTrack.rightPressed){
+        solly.facingLeft=false;
+        solly.vx=solly.maxSpeedX;
+      }
+    }
+    else {
+      if (solly.sprite.moving)
+        solly.sprite.moving=false;
+      if (!solly.sprite.jumping)
+        solly.vx =0;
+    }
+    //UP button handle
+    if (inputTrack.upPressed)
+    {
+      if (!solly.sprite.jumping){
+        solly.vy=-solly.maxSpeedY;
+        solly.sprite.jumping=true;
+      }
+    }
+    //Mouse action, firing weapon
+    if (inputTrack.leftMouseDown)
+    {
+      if (now>=inputTrack.leftMouseTime){
+        solly.fireRocket(solly.x, solly.y, inputTrack.mouseX, inputTrack.mouseY);
+
+        while(now>=inputTrack.leftMouseTime)
+          inputTrack.leftMouseTime+=solly.rocketWait;
+      }
+    }
+
+    solly.x+=solly.vx/1000*dt;//velocities
+    solly.y+=solly.vy/1000*dt;
+    if (solly.x<50) //no infinite move left
+      solly.x=50;
+    else if (solly.x >sizex-50) //no infinite move right
+      solly.x=sizex-50;
+
+    if (solly.y<sizey-100) //gravity
+      solly.vy+=gravity/1000*dt;
+    if (solly.y>sizey-100){ //no clip through ground
+      solly.y=sizey-100;
+      solly.vy=0;
+      solly.sprite.jumping=false;
+    }
+  };
 }
 
 function Sentry(){
@@ -153,44 +208,65 @@ function Sentry(){
   self.sprite.img.src = "sentrysprite.png";
   self.sprite.ctr = 0; //counter
   self.sprite.ctrskp = 8; //counter skip, i.e. framerate
-  self.sprite.tracking = false;
+  self.tracking = true;
   self.shootAtEnemy = function(enemy){
-    if (lastBullet == null) {
+    if (lastBullet == null || bullets == null) {
       bullets = new Bullet(self.x, self.y, enemy.x, enemy.y);
       lastBullet = bullets;
-
     }
     else {
       lastBullet.next = new Bullet(self.x, self.y, enemy.x, enemy.y)
       lastBullet.next.prev = lastBullet;
       lastBullet = lastBullet.next;
     }
+    self.bulletCount++;
   };
-  self.removeBullet = function (bullet) {
-    if (bullet.prev == null) {
-      lastBullet = null;
-      bullet = null;
+  self.bulletSpeed = 250;
+  self.lastBulletTime = 0;
+  self.bulletShootWait = 100;
+  self.bulletCount = 0;
+  self.advance = function(now) {
+    if (sentry.tracking && now-sentry.lastBulletTime>sentry.bulletShootWait && sentry.bulletCount<6) {
+      sentry.lastBulletTime = now;
+      sentry.shootAtEnemy(solly);
     }
-    else {
-      bullet.prev.next = bullet.next;
-      bullet.next.prev = bullet.prev;
-      if (bullet.next==null)
-        lastBullet = bullet.prev;        
+    if (bullets!=null) {
+      for (b = bullets; b; b = b.next) {
+        b.x+=b.vx/1000*dt;
+        b.y+=b.vy/1000*dt;
+      }
     }
-  }
-  self.bulletSpeed = 200;
-
+  };
 }
 
 function Bullet(_xi, _yi, _xf, _yf){
   this.x=_xi;
   this.y=_yi;
-  var factor = Math.sqrt(Math.pow(_xf-_xi,2)+Math.pow(_yf-_yi,2))/solly.rocketSpeed;
+  var factor = Math.sqrt(Math.pow(_xf-_xi,2)+Math.pow(_yf-_yi,2))/sentry.bulletSpeed;
   this.vx = (_xf-_xi)/factor;
   this.vy = (_yf-_yi)/factor;
   this.angle = Math.atan2(_xf-_xi,(_yf-_yi)*-1); //-1 because y axis is flipped
   this.prev=null;
   this.next=null;
+  this.removeBullet = function (thisBullet) {
+    if (thisBullet.prev!=null && thisBullet.next!=null) {//remove from middle
+      thisBullet.prev.next = thisBullet.next;
+      thisBullet.next.prev = thisBullet.prev;
+    } else if (thisBullet.prev==null && thisBullet.next!=null) { //remove from beginning
+      bullets = thisBullet.next;
+      thisBullet.next.prev = null;
+    }
+    else { //remove from end
+      if (thisBullet.prev!=null) {//not last one
+        thisBullet.prev.next=null;
+        lastBullet = thisBullet.prev;
+      } else {
+        lastBullet = null;
+        bullets = null;
+      }
+    }
+    sentry.bulletCount--;
+  };
 }
 
 function reset(){
@@ -212,60 +288,17 @@ function loop() {
   dt = now-before;
   before = now;
 
-  //LEFT or RIGHT button handle
-  if (inputTrack.leftPressed || inputTrack.rightPressed)
-  {
-    solly.sprite.moving = true;
-    solly.ctr = 0;
-    if (inputTrack.leftPressed){
-      solly.facingLeft=true;
-      solly.vx=-solly.maxSpeedX;
-    }
-    if (inputTrack.rightPressed){
-      solly.facingLeft=false;
-      solly.vx=solly.maxSpeedX;
-    }
-  }
-  else {
-    if (solly.sprite.moving)
-      solly.sprite.moving=false;
-    if (!solly.sprite.jumping)
-      solly.vx =0;
-  }
-  //UP button handle
-  if (inputTrack.upPressed)
-  {
-    if (!solly.sprite.jumping){
-      solly.vy=-solly.maxSpeedY;
-      solly.sprite.jumping=true;
-    }
-  }
+  solly.advance(now);
+  sentry.advance(now);
   
-  solly.x+=solly.vx/1000*dt;//velocities
-  solly.y+=solly.vy/1000*dt;
-  if (solly.x<50) //no infinite move left
-    solly.x=50;
-  else if (solly.x >sizex-50) //no infinite move right
-    solly.x=sizex-50;
-  
-  if (solly.y<sizey-100) //gravity
-    solly.vy+=gravity/1000*dt;
-  if (solly.y>sizey-100){ //no clip through ground
-    solly.y=sizey-100;
-    solly.vy=0;
-    solly.sprite.jumping=false;
-  }
-  //Mouse action, firing weapon
-  if (inputTrack.leftMouseDown)
-  {
-    if (now>=inputTrack.leftMouseTime){
-      solly.fireRocket(solly.x, solly.y, inputTrack.mouseX, inputTrack.mouseY);
-      
-      while(now>=inputTrack.leftMouseTime)
-        inputTrack.leftMouseTime+=solly.rocketWait;
+  //bullet cleanup
+  if (bullets!=null) {
+    for (b = bullets; b!=null; b = b.next) {
+      if (b.y > sizey-100 || b.x < 0 || b.x > sizex)
+        b.removeBullet(b);
     }
   }
-
+  //rocket cleanup
   for (i=0; i<4; ++i)
   {
     if (rocketUsed[i])
@@ -311,15 +344,11 @@ function draw() {
     xcoord=(~~(sentry.sprite.ctr/sentry.sprite.ctrskp))*62;
     ycoord=0;
 
-    context.drawImage(sentry.sprite.img, xcoord, ycoord, 39, 39, ~~sentry.x-62/2, ~~sentry.y-39/2, 39, 39); //xold 62
+    context.drawImage(sentry.sprite.img, xcoord, ycoord, 39, 39, ~~sentry.x-39/2, ~~sentry.y-39/2, 39, 39); //xold 62
     
     sentry.sprite.ctr = (sentry.sprite.ctr+1)%(13*sentry.sprite.ctrskp);      
   }
 
-  //context.beginPath();
-  //context.moveTo(solly.x, solly.y);
-  //context.lineTo(inputTrack.mouseX, inputTrack.mouseY);
-  //context.stroke();
   
   if (solly.rocket.imgLoaded){ 
     for (i=0; i<4; ++i)
@@ -338,15 +367,23 @@ function draw() {
   
   //bullet
   if (bullets!=null){
-    for (b = bullets; b; b = b.bullets.next) {
+    for (b = bullets; b; b = b.next) {
       context.beginPath();
-      context.arc(inputTrack.mouseX, inputTrack.mouseY, 2, 0, 2 * Math.PI, false);
+      context.arc(b.x, b.y, 2, 0, 2 * Math.PI, false);
       context.lineWidth = 2;
-      context.strokeStyle = 'black';
+      context.strokeStyle = 'blue';
       context.stroke();
       context.closePath();
     }
   }
+
+  context.beginPath();
+  context.arc(sentry.x, sentry.y, 4, 0, 2 * Math.PI, false);
+  context.lineWidth = 2;
+  context.strokeStyle = 'black';
+  context.stroke();
+  context.closePath();
+  
   context.beginPath();
   context.arc(inputTrack.mouseX, inputTrack.mouseY, 4, 0, 2 * Math.PI, false);
   context.lineWidth = 2;
