@@ -247,7 +247,7 @@ function Sentry(){
     }
     self.bulletCount++;
   };
-  self.bulletSpeed = 250;
+  self.bulletSpeed = 400;
   self.lastBulletTime = 0;
   self.bulletShootWait = 100;
   self.bulletCount = 0;
@@ -278,9 +278,13 @@ function Bullet(_xi, _yi, _xf, _yf){
     if (thisBullet.prev!=null && thisBullet.next!=null) {//remove from middle
       thisBullet.prev.next = thisBullet.next;
       thisBullet.next.prev = thisBullet.prev;
+      thisBullet.next = null;
+      thisBullet.prev = null;
     } else if (thisBullet.prev==null && thisBullet.next!=null) { //remove from beginning
       bullets = thisBullet.next;
       thisBullet.next.prev = null;
+      thisBullet.next = null;
+      thisBullet.prev = null;
     }
     else { //remove from end
       if (thisBullet.prev!=null) {//not last one
@@ -290,6 +294,8 @@ function Bullet(_xi, _yi, _xf, _yf){
         lastBullet = null;
         bullets = null;
       }
+      thisBullet.next = null;
+      thisBullet.prev = null;
     }
     sentry.bulletCount--;
   };
@@ -302,6 +308,10 @@ function reset(){
   lastBullet = null;
   sentry = new Sentry();
   inputTrack.reset();
+  for (i=0; i<4; ++i)
+  {
+    rocketUsed[i]=false;
+  }
 }
 
 function startGame(){
@@ -323,7 +333,7 @@ function loop() {
   //bullet cleanup
   if (bullets!=null) {
     for (b = bullets; b!=null; b = b.next) {
-      if (Math.sqrt(Math.pow(b.x-solly.x,2) + Math.pow(b.y-solly.y,2)<25)) {
+      if (Math.sqrt(Math.pow(b.x-solly.x,2) + Math.pow(b.y-solly.y,2))<25) {
         solly.hp-=b.damage;
         b.removeBullet(b);
       }
@@ -347,7 +357,6 @@ function loop() {
   var cont = true;
   if (sentry.hp<=0) {
     sentry.hp=0;
-    //sentry.die();
     solly.sentryKills++;
     var temp = sentry.bulletCount;
     sentry = new Sentry();
@@ -356,7 +365,6 @@ function loop() {
 
   if (solly.hp<=0) {
     solly.hp=0;
-    //solly.die();
     cont=false;
   }
 
@@ -365,8 +373,43 @@ function loop() {
     requestAnimationFrame(loop);
   else {
     //alert("Oh dear, you are dead! Click to restart.")
-    startGame();
+    requestAnimationFrame(endGameDisplay)
+    //endGameDisplay();
+    //startGame();
   }
+}
+
+
+function endGameDisplay() {
+  context.fillStyle = 'red';
+  context.fillRect(sizex/2-100, sizey/2-60, 200, 120);
+  context.fillStyle = 'white';
+  context.fillRect(sizex/2-98, sizey/2-58, 196, 116);
+  context.fillStyle = 'black';
+  context.font="20px Calibri";
+  context.fillText("Oh dear, you are dead!", sizex/2-95, sizey/2-30);
+  context.fillText("Score: "+solly.sentryKills, sizex/2-35, sizey/2-5);
+  
+  context.fillStyle = 'red';
+  context.fillRect(sizex/2-50, sizey/2+20, 100, 20);
+  context.fillStyle = 'white';
+  context.fillRect(sizex/2-48, sizey/2+22, 96, 16);
+  context.fillStyle = 'black';
+  context.font="14px Calibri";
+  context.fillText("Restart.", sizex/2-25, sizey/2+35);
+
+  if(!(inputTrack.leftMouseDown && 
+          inputTrack.mouseX>=sizex/2-50 && 
+          inputTrack.mouseX<=sizex/2+100 && 
+          inputTrack.mouseY>=sizey/2+10 && 
+          inputTrack.mouseY<=sizey/2+30)) {
+            requestAnimationFrame(endGameDisplay);
+          }
+   else {
+     startGame();
+   }
+
+  
 }
 
 
@@ -429,8 +472,8 @@ function draw() {
   if (bullets!=null){
     for (b = bullets; b; b = b.next) {
       context.beginPath();
-      context.arc(b.x, b.y, 2, 0, 2 * Math.PI, false);
-      context.fillStyle = 'red';
+      context.arc(b.x, b.y, 3, 0, 2 * Math.PI, false);
+      context.fillStyle = 'black';
       context.fill();
       context.lineWidth = 2;
       context.strokeStyle = 'yellow';
@@ -447,5 +490,5 @@ function draw() {
   context.closePath();
   
   context.fillStyle = 'black';
-  context.fillText("Score: "+solly.sentryKills, sizex-50, 20);
+  context.fillText("Score: "+solly.sentryKills, sizex-75, 20);
 }
