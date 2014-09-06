@@ -21,6 +21,7 @@ var bullets;
 var lastBullet;
 var before;
 var inputTrack;
+var background;
 
 var dt;
 var gravity = 2000;
@@ -39,12 +40,21 @@ function prep(){
   canvas.style.position = "relative";
   canvas.id = "sollygame";
   context = canvas.getContext("2d");
+  context.font="18px Calibri";
 
   canvas.width = sizex;
   canvas.height = sizey;
   document.body.appendChild(canvas);
   jqueryCanvas = $(document.getElementById('sollygame'));
   borderWidth = ~~jqueryCanvas.css("border-left-width")[0];
+
+  background = {};
+  background.img = new Image();
+  background.imgLoaded = false;
+  background.img.onload = function () {
+    background.imgLoaded = true;
+  };
+  background.img.src = "cp_gorge0006.png";
 
   inputTrack = {
     leftPressed: false,
@@ -77,6 +87,13 @@ function prep(){
     updateFireTime: function(time) {
       if (inputTrack.leftMouseTime < time)
         inputTrack.leftMouseTime = time;
+    },
+    reset: function() {
+      inputTrack.leftPressed = false;
+      inputTrack.rightPressed = false;
+      inputTrack.upPressed = false;
+      inputTrack.downPressed = false;
+      inputTrack.leftMouseDown = false;
     }
   };
   $(document).on("keydown", function(event) { inputTrack.keyEv(event, true); });
@@ -96,7 +113,7 @@ function prep(){
 function Solly(){
   var self = this;
   self.x = sizex/2;
-  self.y = sizey-100;
+  self.y = sizey-50;
   self.vx = 0; //max 160 pixels per second
   self.vy = 0;
   self.hp = 100;
@@ -123,6 +140,8 @@ function Solly(){
   self.sprite.jumping = false;
   self.rocketWait = 500; //firespeed in ms of rocket launcher
   self.rocketSpeed = 480;
+  self.rocketDamage = 20;
+  self.sentryKills = 0;
   self.fireRocket = function(xi, yi, xf, yf){
     for (i=0; i<4; ++i)
       if (!rocketUsed[i])
@@ -184,21 +203,28 @@ function Solly(){
     else if (solly.x >sizex-50) //no infinite move right
       solly.x=sizex-50;
 
-    if (solly.y<sizey-100) //gravity
+    if (solly.y<sizey-50) //gravity
       solly.vy+=gravity/1000*dt;
-    if (solly.y>sizey-100){ //no clip through ground
-      solly.y=sizey-100;
+    if (solly.y>sizey-50){ //no clip through ground
+      solly.y=sizey-50;
       solly.vy=0;
       solly.sprite.jumping=false;
     }
+
+    for (i=0; i<4; ++i)
+      if (rocketUsed[i]){
+        rockets[i][0]+=rockets[i][2]/1000*dt;
+        rockets[i][1]+=rockets[i][3]/1000*dt;
+      }
+
   };
 }
 
 function Sentry(){
   var self = this;
   self.hp = 100;
-  self.x = Math.random()*(sizex-40)+20;
-  self.y = 50;
+  self.x = Math.random()*(sizex-100)+50;
+  self.y = 120;
   self.sprite = {};
   self.sprite.img = new Image();
   self.sprite.imgLoaded = false;
@@ -267,6 +293,7 @@ function Bullet(_xi, _yi, _xf, _yf){
     }
     sentry.bulletCount--;
   };
+  this.damage = 5;
 }
 
 function reset(){
@@ -274,6 +301,7 @@ function reset(){
   bullets = null;
   lastBullet = null;
   sentry = new Sentry();
+  inputTrack.reset();
 }
 
 function startGame(){
@@ -290,35 +318,63 @@ function loop() {
 
   solly.advance(now);
   sentry.advance(now);
-  
+
+
   //bullet cleanup
   if (bullets!=null) {
     for (b = bullets; b!=null; b = b.next) {
-      if (b.y > sizey-100 || b.x < 0 || b.x > sizex)
+      if (Math.sqrt(Math.pow(b.x-solly.x,2) + Math.pow(b.y-solly.y,2)<25)) {
+        solly.hp-=b.damage;
+        b.removeBullet(b);
+      }
+      else if (b.y > sizey || b.x < 0 || b.x > sizex || b.y <0)
         b.removeBullet(b);
     }
   }
   //rocket cleanup
   for (i=0; i<4; ++i)
   {
-    if (rocketUsed[i])
-    {
-      rockets[i][0]+=rockets[i][2]/1000*dt;
-      rockets[i][1]+=rockets[i][3]/1000*dt;
+    if (rocketUsed[i]) {
+      if (Math.sqrt(Math.pow(rockets[i][0]-sentry.x,2) + Math.pow(rockets[i][1]-sentry.y,2))<25) {
+        sentry.hp-=solly.rocketDamage;
+        rocketUsed[i]=false;  
+      }
+      else if (rockets[i][1]<0 || rockets[i][0] <0 || rockets[i][0] > sizex || rockets[i][1]> sizey)
+        rocketUsed[i]=false;
     }
-    if (rockets[i][1]<100 || rockets[i][0] <0 || rockets[i][0] > sizex || rockets[i][1]> sizey)
-      rocketUsed[i]=false;
+  }
+
+  var cont = true;
+  if (sentry.hp<=0) {
+    sentry.hp=0;
+    //sentry.die();
+    solly.sentryKills++;
+    var temp = sentry.bulletCount;
+    sentry = new Sentry();
+    sentry.bulletCount = temp;
+  }
+
+  if (solly.hp<=0) {
+    solly.hp=0;
+    //solly.die();
+    cont=false;
   }
 
   draw();
-
-  requestAnimationFrame(loop);
+  if (cont)
+    requestAnimationFrame(loop);
+  else {
+    //alert("Oh dear, you are dead! Click to restart.")
+    startGame();
+  }
 }
 
 
 
 function draw() {
   context.clearRect(0, 0, sizex, sizey);
+  if (background.imgLoaded)
+    context.drawImage(background.img, 0, 0);
   if (solly.sprite.imgLoaded){
     
     if (solly.sprite.moving) {
@@ -330,7 +386,9 @@ function draw() {
       ycoord=(solly.facingLeft?50:150);
     }
 
-    context.drawImage(solly.sprite.img, xcoord, ycoord, 48, 50, ~~solly.x-48/2, ~~solly.y-50/2, 48, 50);
+    context.drawImage(solly.sprite.img, xcoord, ycoord, 48, 50, ~~(solly.x-48/2), ~~(solly.y-50/2), 48, 50);
+    context.fillStyle = 'red';
+    context.fillRect(~~(solly.x-25), ~~(solly.y-50/2)-5, ~~solly.hp/2, 6);
     
     if (solly.sprite.moving)
       solly.sprite.ctr = (solly.sprite.ctr+1)%(10*solly.sprite.ctrskp);
@@ -344,9 +402,11 @@ function draw() {
     xcoord=(~~(sentry.sprite.ctr/sentry.sprite.ctrskp))*62;
     ycoord=0;
 
-    context.drawImage(sentry.sprite.img, xcoord, ycoord, 39, 39, ~~sentry.x-39/2, ~~sentry.y-39/2, 39, 39); //xold 62
+    context.drawImage(sentry.sprite.img, xcoord, ycoord, 39, 39, ~~(sentry.x-39/2), ~~(sentry.y-39/2), 39, 39); //xold 62
+    context.fillStyle = 'red';
+    context.fillRect(~~(sentry.x-25), ~~(sentry.y-39/2)-5, ~~sentry.hp/2, 6);
     
-    sentry.sprite.ctr = (sentry.sprite.ctr+1)%(13*sentry.sprite.ctrskp);      
+    sentry.sprite.ctr = (sentry.sprite.ctr+1)%(13*sentry.sprite.ctrskp);
   }
 
   
@@ -365,24 +425,19 @@ function draw() {
     }
   }
   
-  //bullet
+  //bullets
   if (bullets!=null){
     for (b = bullets; b; b = b.next) {
       context.beginPath();
       context.arc(b.x, b.y, 2, 0, 2 * Math.PI, false);
+      context.fillStyle = 'red';
+      context.fill();
       context.lineWidth = 2;
-      context.strokeStyle = 'blue';
+      context.strokeStyle = 'yellow';
       context.stroke();
       context.closePath();
     }
   }
-
-  context.beginPath();
-  context.arc(sentry.x, sentry.y, 4, 0, 2 * Math.PI, false);
-  context.lineWidth = 2;
-  context.strokeStyle = 'black';
-  context.stroke();
-  context.closePath();
   
   context.beginPath();
   context.arc(inputTrack.mouseX, inputTrack.mouseY, 4, 0, 2 * Math.PI, false);
@@ -390,4 +445,7 @@ function draw() {
   context.strokeStyle = 'black';
   context.stroke();
   context.closePath();
+  
+  context.fillStyle = 'black';
+  context.fillText("Score: "+solly.sentryKills, sizex-50, 20);
 }
