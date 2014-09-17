@@ -445,7 +445,7 @@ function draw() {
     xcoord=(~~(sentry.sprite.ctr/sentry.sprite.ctrskp))*62;
     ycoord=0;
 
-    context.drawImage(sentry.sprite.img, xcoord, ycoord, 39, 39, ~~(sentry.x-39/2), ~~(sentry.y-39/2), 39, 39); //xold 62
+    context.drawImage(sentry.sprite.img, xcoord, ycoord, 39, 38, ~~(sentry.x-39/2), ~~(sentry.y-39/2), 39, 38); //xold 62
     context.fillStyle = 'red';
     context.fillRect(~~(sentry.x-25), ~~(sentry.y-39/2)-5, ~~sentry.hp/2, 6);
     
